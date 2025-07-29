@@ -1,0 +1,35 @@
+[project]
+name = "clora"
+version = "0.1.0"
+description = "CLoRA: Contrastive Test-Time Composition of Multiple LoRA Models for Image  Generation"
+authors = [
+    {name = "Tuna Han Salih Meral", email = "tmeral@vt.edu"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["lora", "diffusion", "contrastive-learning", "stable-diffusion", "machine-learning"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
+dependencies = [
+    "accelerate==0.28.0",
+    "diffusers==0.27.0",
+    "huggingface_hub==0.22.2",
+    "ipython==7.34.0",
+    "jupyter>=1.1.1",
+    "matplotlib==3.8.0",
+    "peft==0.10.0",
+    "pytorch-metric-learning==2.4.1",
+    "torch>=2.2.0",
+    "tqdm==4.66.2",
+    "transformers==4.39.0",
+]
