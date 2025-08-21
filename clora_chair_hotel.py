@@ -1,6 +1,7 @@
 import os
 import sys
 import torch
+import psutil
 from diffusers import StableDiffusionPipeline
 from pipeline_clora import CloraPipeline
 from datetime import datetime
@@ -39,18 +40,28 @@ def find_token_index(tokenizer, text, target_word):
 
 def main():
     log_info("Starting CLoRA Chair + Hotel Room composition")
-    
+
+    # Check system memory
+    memory = psutil.virtual_memory()
+    memory_gb = memory.total / (1024**3)
+    available_gb = memory.available / (1024**3)
+    log_info(f"System memory: {memory_gb:.1f}GB total, {available_gb:.1f}GB available")
+
     # Check CUDA availability
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dtype = torch.float16 if device == "cuda" else torch.float32
     log_info(f"Using device: {device}, dtype: {dtype}")
-    
+
     if device == "cpu":
         log_info("WARNING: CUDA not available. This will be very slow on CPU.")
+        if available_gb < 8:
+            log_error(f"Insufficient memory for CPU execution. Need at least 8GB, have {available_gb:.1f}GB")
+            log_error("Consider running on a machine with more RAM or with GPU support.")
+            return False
     
     # Check for LoRA files
-    chair_path = "Tantra__Chair.safetensors"
-    hotel_path = "lovehotel_SD15_V7.safetensors"
+    chair_path = "models/chair/Tantra__Chair.safetensors"
+    hotel_path = "models/hotelroom/lovehotel_SD15_V7.safetensors"
     
     if not os.path.exists(chair_path):
         log_error(f"Chair LoRA not found: {chair_path}")
@@ -99,10 +110,13 @@ def main():
         
         # Define prompts
         prompts = [
-            "a luxurious chair in a hotel room",
-            "an elegant hotel room interior"
+            "a proportional chair in a well-lit hotel room, proper scale, realistic proportions",
+            "a bright elegant hotel room interior with natural lighting, well-illuminated space"
         ]
-        neg_prompts = ["blurry, low quality, distorted", "blurry, low quality, distorted"]
+        neg_prompts = [
+            "oversized chair, too large, too big, disproportionate, dark, dim lighting, shadows, underexposed",
+            "dark room, dim lighting, poor illumination, shadows, underexposed, gloomy"
+        ]
         
         log_info(f"Prompts: {prompts}")
         
@@ -134,29 +148,40 @@ def main():
         # Generate image
         log_info("Starting image generation with CLoRA...")
         log_info("This may take several minutes...")
-        
-        images, attn_maps, masks = pipe(
-            prompt_list=prompts,
-            negative_prompt_list=neg_prompts,
-            lora_list=["chair", "hotel"],
-            important_token_indices=important_token_indices,
-            mask_indices=mask_indices,
-            latent_update=True,
-            step_size=20,
-            max_iter_to_alter=25,
-            apply_mask_after=8,
-            mask_threshold_alpha=0.35,
-            mask_erode=False,
-            mask_dilate=True,
-            mask_opening=False,
-            mask_closing=True,
-            num_inference_steps=50,
-            guidance_scale=7.5,
-            use_text_encoder_lora=True,
-            height=512,
-            width=512,
-            generator=torch.Generator(device).manual_seed(42),
-        )
+
+        try:
+            images, attn_maps, masks = pipe(
+                prompt_list=prompts,
+                negative_prompt_list=neg_prompts,
+                lora_list=["chair", "hotel"],
+                important_token_indices=important_token_indices,
+                mask_indices=mask_indices,
+                latent_update=True,
+                step_size=20,
+                max_iter_to_alter=25,
+                apply_mask_after=8,
+                mask_threshold_alpha=0.35,
+                mask_erode=False,
+                mask_dilate=True,
+                mask_opening=False,
+                mask_closing=True,
+                num_inference_steps=50,
+                guidance_scale=7.5,
+                use_text_encoder_lora=True,
+                height=512,
+                width=512,
+                generator=torch.Generator(device).manual_seed(42),
+            )
+        except RuntimeError as e:
+            if "out of memory" in str(e).lower():
+                log_error("Out of memory error. Try running on a machine with more RAM or GPU.")
+                log_error("For CPU execution, you need at least 16GB RAM.")
+                return False
+            else:
+                raise e
+        except Exception as e:
+            log_error(f"Error during image generation: {str(e)}")
+            raise e
         
         # Save the result
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

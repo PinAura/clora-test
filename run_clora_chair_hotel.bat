@@ -18,14 +18,14 @@ echo [INFO] Current directory: %CD%
 echo [INFO] Checking for required LoRA files...
 
 :: Check for LoRA files
-if not exist "Tantra__Chair.safetensors" (
+if not exist "models/chair/Tantra__Chair.safetensors" (
     echo ERROR: Tantra__Chair.safetensors not found in current directory
     echo Please ensure the chair LoRA file is in: %CD%
     pause
     exit /b 1
 )
 
-if not exist "lovehotel_SD15_V7.safetensors" (
+if not exist "models/hotelroom/lovehotel_SD15_V7.safetensors" (
     echo ERROR: lovehotel_SD15_V7.safetensors not found in current directory
     echo Please ensure the hotel LoRA file is in: %CD%
     pause
