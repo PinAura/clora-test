@@ -133,50 +133,46 @@ def main():
         pipe.load_lora_weights(hotel_path, adapter_name="hotel")
         log_info("Hotel LoRA loaded")
 
-        # Define prompts with proportion and symmetry emphasis
+        # Separate prompts with clear focus: chair-specific vs room-specific
         prompts = [
-            "a single elegant designer chair positioned in the center of the room, resting on the floor, clearly visible, realistic proportions, correct width to height ratio, symmetrical, intact, balanced proportions, equal left-right symmetry, standard seat height, consistent lighting, even illumination, no shadows on chair, uniform color, interior photography, 24mm wide-angle, natural window light, premium upholstery, walnut wood, professional color grading, rule of thirds, clean composition",
-            "a minimalist bright hotel room interior with clear empty floor space, no bed, no sofa, no table, natural lighting, clean walls and defined floor, professional interior photography"
+            "a single elegant designer chair, realistic proportions, correct width to height ratio, symmetrical, intact, balanced proportions, equal left-right symmetry, standard seat height, proper leg height, tall chair legs, adequate chair base height, chair legs proportional to backrest, consistent lighting, even illumination, no shadows on chair, uniform color, sharp edges, clean geometry, distinct chair legs, separate chair components, well-defined chair base, clear chair structure, interior photography, premium upholstery, walnut wood, professional color grading",
+            "a minimalist bright hotel room interior with clear empty floor space, flat floor, level ground, no bed, no sofa, no table, no ottoman, no footstool, no armchairs, no furniture, natural lighting, clean walls, straight wall lines, sharp corners, geometric precision, professional interior photography"
         ]
 
         # Reinforce chair presence by repeating key noun subtly
         prompts[0] += ", chair, designer chair"
 
         neg_prompts = [
-            "oversized chair, too large, too big, disproportionate, stretched, squashed, asymmetrical, bent legs, broken, incomplete, chair in wall, chair floating, chair embedded in wall, multiple chairs, cartoonish, low poly, over-sharpened, oversaturated, HDR halo, dark, dim lighting, bed, sofa, table, nightstand, couch, bench, blue tint, color bleeding, uneven lighting, patchy colors, shadows on chair, dark spots",
-            "dark room, dim lighting, poor illumination, underexposed, gloomy, cluttered room, no floor space, bed, sofa, table, nightstand, couch, bench, blue tint, color bleeding"
+            "oversized chair, too large, too big, disproportionate, stretched, squashed, asymmetrical, bent legs, broken, incomplete, multiple chairs, two chairs, several chairs, duplicate chairs, extra chairs, ottoman, footstool, foot chair, chair set, furniture set, mini chair, small chair, footrest, stool, short legs, stubby legs, low chair base, chair legs too short, disproportionate legs, cartoonish, low poly, over-sharpened, oversaturated, HDR halo, dark, dim lighting, blue tint, color bleeding, uneven lighting, patchy colors, shadows on chair, dark spots, curved lines, distorted geometry, warped edges, merged chair parts, fused legs, blended components, unclear chair structure, fuzzy areas, blurry details, soft focus",
+            "dark room, dim lighting, poor illumination, underexposed, gloomy, cluttered room, no floor space, curved walls, distorted lines, warped geometry, uneven floor, slanted ground, distorted floor, rug, carpet, bed, sofa, table, nightstand, couch, bench, armchairs, furniture, ottoman, footstool, split screen, divided image, multiple scenes"
         ]
 
         log_info(f"Prompts: {prompts}")
 
-        # Find token indices with better spatial awareness
+        # Find token indices for separate prompts
         log_info("Finding token indices...")
         chair_idx = find_token_index(pipe.tokenizer, prompts[0], "chair")
         hotel_idx = find_token_index(pipe.tokenizer, prompts[1], "hotel")
         room_idx = find_token_index(pipe.tokenizer, prompts[1], "room")
 
-        # Also find spatial positioning tokens (used for prompting only)
-        center_idx = find_token_index(pipe.tokenizer, prompts[0], "center")
-        floor_idx = find_token_index(pipe.tokenizer, prompts[0], "floor")
-
         # Use both hotel and room indices for the hotel concept
         hotel_indices = [hotel_idx, room_idx] if hotel_idx != room_idx else [hotel_idx]
 
-        # Focus important tokens on the chair itself (avoid diluting with spatial tokens)
+        # Focus on chair token only
         chair_indices = [chair_idx]
 
         log_info(f"Chair token indices: {chair_indices}")
         log_info(f"Hotel token indices: {hotel_indices}")
 
-        # Construct indices for CLoRA: use spatial tokens for contrastive loss, but not for mask
+        # Construct indices for separate prompts approach
         important_token_indices = [
-            [[chair_idx, center_idx, floor_idx], []],  # class 0: chair + spatial context from prompt 0
-            [[], hotel_indices],                        # class 1: hotel/room from prompt 1
+            [chair_indices, []],  # class 0: chair from prompt 0 only
+            [[], hotel_indices],  # class 1: hotel/room from prompt 1 only
         ]
 
         mask_indices = [
-            chair_indices,  # apply mask to chair LoRA
-            hotel_indices,  # keep background influence across the frame
+            chair_indices,    # apply mask to chair LoRA
+            hotel_indices,    # apply mask to hotel LoRA
         ]
 
         log_info("Token indices configured")
@@ -195,18 +191,18 @@ def main():
                 important_token_indices=important_token_indices,
                 mask_indices=mask_indices,
                 latent_update=True,
-                step_size=3,  # even gentler to reduce color bleeding
-                max_iter_to_alter=10,  # fewer iterations to preserve chair integrity
-                apply_mask_after=16,  # let background settle more to reduce interference
-                mask_threshold_alpha=0.65,  # sharper separation to prevent color bleeding
-                mask_erode=True,
-                mask_dilate=False,  # reduce dilation to keep mask tighter
+                step_size=2.5,  # slightly gentler to preserve leg proportions
+                max_iter_to_alter=10,  # fewer iterations to avoid over-optimization
+                apply_mask_after=15,  # slightly later to let proportions settle
+                mask_threshold_alpha=0.6,
+                mask_erode=False,
+                mask_dilate=False,
                 mask_opening=True,
                 mask_closing=True,
                 num_inference_steps=60,
-                guidance_scale=5.5,  # lower guidance to reduce over-commitment artifacts
+                guidance_scale=6.0,  # balanced guidance for proportion adherence
                 use_text_encoder_lora=True,
-                height=768,
+                height=512,
                 width=512,
                 generator=torch.Generator(device).manual_seed(42),
             )
