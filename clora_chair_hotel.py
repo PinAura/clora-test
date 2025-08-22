@@ -108,38 +108,49 @@ def main():
         pipe.load_lora_weights(hotel_path, adapter_name="hotel")
         log_info("Hotel LoRA loaded")
         
-        # Define prompts
+        # Define prompts with better spatial positioning
         prompts = [
-            "a proportional chair in a well-lit hotel room, proper scale, realistic proportions",
-            "a bright elegant hotel room interior with natural lighting, well-illuminated space"
+            "a single elegant chair positioned in the center of the room, proper scale, realistic proportions, standing on the floor",
+            "a spacious bright hotel room interior with clear floor space, natural lighting, well-illuminated room with walls and floor clearly defined"
         ]
         neg_prompts = [
-            "oversized chair, too large, too big, disproportionate, dark, dim lighting, shadows, underexposed",
-            "dark room, dim lighting, poor illumination, shadows, underexposed, gloomy"
+            "oversized chair, too large, too big, disproportionate, chair in wall, chair floating, chair embedded in wall, multiple chairs, dark, dim lighting",
+            "dark room, dim lighting, poor illumination, shadows, underexposed, gloomy, cluttered room, no floor space"
         ]
         
         log_info(f"Prompts: {prompts}")
         
-        # Find token indices
+        # Find token indices with better spatial awareness
         log_info("Finding token indices...")
         chair_idx = find_token_index(pipe.tokenizer, prompts[0], "chair")
         hotel_idx = find_token_index(pipe.tokenizer, prompts[1], "hotel")
         room_idx = find_token_index(pipe.tokenizer, prompts[1], "room")
-        
+
+        # Also find spatial positioning tokens
+        center_idx = find_token_index(pipe.tokenizer, prompts[0], "center")
+        floor_idx = find_token_index(pipe.tokenizer, prompts[0], "floor")
+
         # Use both hotel and room indices for the hotel concept
         hotel_indices = [hotel_idx, room_idx] if hotel_idx != room_idx else [hotel_idx]
-        
-        log_info(f"Chair token index: {chair_idx}")
+
+        # Include spatial positioning for chair
+        chair_indices = [chair_idx]
+        if center_idx != chair_idx:
+            chair_indices.append(center_idx)
+        if floor_idx != chair_idx and floor_idx != center_idx:
+            chair_indices.append(floor_idx)
+
+        log_info(f"Chair token indices: {chair_indices}")
         log_info(f"Hotel token indices: {hotel_indices}")
-        
-        # Construct indices for CLoRA
+
+        # Construct indices for CLoRA with better spatial separation
         important_token_indices = [
-            [[chair_idx], []],  # class 0: "chair" from prompt 0
+            [chair_indices, []],  # class 0: "chair" + spatial tokens from prompt 0
             [[], hotel_indices],  # class 1: "hotel/room" from prompt 1
         ]
-        
+
         mask_indices = [
-            [chair_idx],  # for "chair" LoRA
+            chair_indices,  # for "chair" LoRA with spatial context
             hotel_indices,  # for "hotel" LoRA
         ]
         
@@ -157,13 +168,13 @@ def main():
                 important_token_indices=important_token_indices,
                 mask_indices=mask_indices,
                 latent_update=True,
-                step_size=20,
-                max_iter_to_alter=25,
-                apply_mask_after=8,
-                mask_threshold_alpha=0.35,
-                mask_erode=False,
-                mask_dilate=True,
-                mask_opening=False,
+                step_size=8,  # Reduced from 20 to prevent aggressive distortion
+                max_iter_to_alter=20,  # Reduced from 25 to prevent over-optimization
+                apply_mask_after=12,  # Increased from 8 to allow better initial composition
+                mask_threshold_alpha=0.5,  # Increased from 0.35 for better mask separation
+                mask_erode=True,  # Changed to True to prevent mask bleeding
+                mask_dilate=False,  # Changed to False to keep masks more precise
+                mask_opening=True,  # Changed to True to clean up mask noise
                 mask_closing=True,
                 num_inference_steps=50,
                 guidance_scale=7.5,
